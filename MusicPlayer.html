@@ -1,0 +1,690 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>AuraSound - Modern Web Music Player</title>
+    <!-- Tailwind CSS for sleek UI styling -->
+    <script src="https://cdn.tailwindcss.com"></script>
+    <!-- FontAwesome Icons -->
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
+    <!-- Google Fonts -->
+    <link href="https://fonts.googleapis.com/css2?family=Plus+Jakarta+Sans:wght@300;400;500;600;700&display=swap" rel="stylesheet">
+    
+    <style>
+        body {
+            font-family: 'Plus Jakarta Sans', sans-serif;
+            background: linear-gradient(135deg, #0f172a 0%, #1e1b4b 50%, #311042 100%);
+            min-height: 100vh;
+        }
+
+        /* Glassmorphism Styles */
+        .glass-panel {
+            background: rgba(255, 255, 255, 0.05);
+            backdrop-filter: blur(20px);
+            -webkit-backdrop-filter: blur(20px);
+            border: 1px solid rgba(255, 255, 255, 0.1);
+        }
+
+        .glass-card {
+            background: rgba(255, 255, 255, 0.03);
+            backdrop-filter: blur(10px);
+            border: 1px solid rgba(255, 255, 255, 0.08);
+        }
+
+        /* Rotating Vinyl Animation */
+        .vinyl-disc {
+            transition: transform 0.3s ease;
+        }
+        
+        .spinning {
+            animation: spin 12s linear infinite;
+        }
+
+        @keyframes spin {
+            0% { transform: rotate(0deg); }
+            100% { transform: rotate(360deg); }
+        }
+
+        /* Range Sliders Styling */
+        input[type="range"] {
+            -webkit-appearance: none;
+            appearance: none;
+            background: transparent;
+            cursor: pointer;
+        }
+
+        input[type="range"]::-webkit-slider-runnable-track {
+            background: rgba(255, 255, 255, 0.15);
+            height: 6px;
+            border-radius: 9999px;
+        }
+
+        input[type="range"]::-webkit-slider-thumb {
+            -webkit-appearance: none;
+            height: 14px;
+            width: 14px;
+            border-radius: 50%;
+            background: #a855f7;
+            margin-top: -4px;
+            box-shadow: 0 0 10px rgba(168, 85, 247, 0.8);
+            transition: transform 0.1s ease, background-color 0.1s ease;
+        }
+
+        input[type="range"]:hover::-webkit-slider-thumb {
+            transform: scale(1.2);
+            background: #c084fc;
+        }
+
+        /* Visualizer Bar Animations */
+        .viz-bar {
+            transition: height 0.15s ease;
+        }
+
+        /* Custom Scrollbar for Playlist */
+        .custom-scroll::-webkit-scrollbar {
+            width: 5px;
+        }
+        .custom-scroll::-webkit-scrollbar-track {
+            background: rgba(0, 0, 0, 0.1);
+        }
+        .custom-scroll::-webkit-scrollbar-thumb {
+            background: rgba(255, 255, 255, 0.2);
+            border-radius: 10px;
+        }
+        .custom-scroll::-webkit-scrollbar-thumb:hover {
+            background: rgba(255, 255, 255, 0.4);
+        }
+    </style>
+</head>
+<body class="text-white flex items-center justify-center p-4 md:p-8 select-none">
+
+    <!-- Toast Notification Container -->
+    <div id="toast-container" class="fixed top-5 right-5 z-50 flex flex-col gap-2"></div>
+
+    <!-- Main Container -->
+    <div class="w-full max-w-5xl glass-panel rounded-3xl p-6 md:p-8 shadow-2xl relative overflow-hidden flex flex-col lg:flex-row gap-8 items-stretch border border-white/10">
+
+        <!-- Left Column: Music Player View -->
+        <div class="flex-1 flex flex-col justify-between items-center space-y-6">
+            
+            <!-- Header Bar -->
+            <div class="w-full flex justify-between items-center">
+                <div class="flex items-center gap-3">
+                    <div class="w-9 h-9 rounded-xl bg-gradient-to-tr from-purple-600 to-pink-500 flex items-center justify-center shadow-lg shadow-purple-500/30">
+                        <i class="fa-solid fa-compact-disc text-white text-lg"></i>
+                    </div>
+                    <span class="font-bold text-lg tracking-wide text-white/90">Aura<span class="text-purple-400">Sound</span></span>
+                </div>
+                
+                <div class="flex items-center gap-2">
+                    <label for="file-upload" class="cursor-pointer glass-card px-3 py-1.5 rounded-xl text-xs font-medium text-white/80 hover:text-white hover:bg-white/10 transition flex items-center gap-2 border border-white/10">
+                        <i class="fa-solid fa-plus text-purple-400"></i> Upload MP3
+                    </label>
+                    <input id="file-upload" type="file" accept="audio/*" class="hidden" multiple />
+
+                    <button id="toggle-playlist-mobile" class="lg:hidden glass-card p-2 rounded-xl text-white/80 hover:text-white border border-white/10">
+                        <i class="fa-solid fa-list-ul"></i>
+                    </button>
+                </div>
+            </div>
+
+            <!-- Album Art & Vinyl View -->
+            <div class="relative my-4 flex justify-center items-center group">
+                <!-- Glowing Ambient Canvas Backing -->
+                <div class="absolute w-64 h-64 md:w-72 md:h-72 rounded-full bg-purple-600/30 filter blur-3xl group-hover:bg-purple-500/40 transition duration-500"></div>
+                
+                <!-- Vinyl Disc Outer -->
+                <div id="vinyl-disc" class="vinyl-disc relative w-60 h-60 md:w-72 md:h-72 rounded-full bg-neutral-900 p-2 shadow-2xl flex items-center justify-center border-4 border-neutral-800/80">
+                    <!-- Vinyl Grooves -->
+                    <div class="w-full h-full rounded-full border border-neutral-800/60 flex items-center justify-center relative overflow-hidden" style="background: repeating-radial-gradient(#171717, #171717 2px, #262626 3px, #171717 4px);">
+                        
+                        <!-- Track Cover Art inside Vinyl Center -->
+                        <img id="cover-art" src="https://images.unsplash.com/photo-1518709268805-4e9042af9f23?w=500&auto=format&fit=crop&q=80" alt="Album Cover" class="w-28 h-28 md:w-36 md:h-36 rounded-full object-cover shadow-lg border-4 border-neutral-900 z-10 transition-all duration-500">
+                        
+                        <!-- Center Hole -->
+                        <div class="absolute w-5 h-5 bg-neutral-900 rounded-full z-20 border-2 border-neutral-700"></div>
+                    </div>
+                </div>
+            </div>
+
+            <!-- Song Info & Visualizer -->
+            <div class="text-center w-full space-y-2">
+                <h2 id="song-title" class="text-2xl md:text-3xl font-bold truncate tracking-tight text-white/95">Cyber Neon Sunset</h2>
+                <p id="artist-name" class="text-sm font-medium text-purple-300/80 truncate">Aether Synth</p>
+                
+                <!-- Audio Visualizer Equalizer Bars -->
+                <div id="visualizer-container" class="flex justify-center items-end gap-1.5 h-8 my-2 pt-2">
+                    <div class="viz-bar w-1.5 bg-purple-500/80 rounded-full h-2"></div>
+                    <div class="viz-bar w-1.5 bg-purple-400/80 rounded-full h-4"></div>
+                    <div class="viz-bar w-1.5 bg-pink-500/80 rounded-full h-2"></div>
+                    <div class="viz-bar w-1.5 bg-purple-300/80 rounded-full h-6"></div>
+                    <div class="viz-bar w-1.5 bg-purple-500/80 rounded-full h-3"></div>
+                    <div class="viz-bar w-1.5 bg-pink-400/80 rounded-full h-5"></div>
+                    <div class="viz-bar w-1.5 bg-purple-400/80 rounded-full h-2"></div>
+                </div>
+            </div>
+
+            <!-- Audio Scrubbing Controls -->
+            <div class="w-full space-y-1.5">
+                <div class="relative flex items-center">
+                    <input id="progress-bar" type="range" min="0" max="100" value="0" class="w-full">
+                </div>
+                <div class="flex justify-between text-xs text-white/50 font-medium">
+                    <span id="current-time">0:00</span>
+                    <span id="total-duration">0:00</span>
+                </div>
+            </div>
+
+            <!-- Player Main Controls -->
+            <div class="w-full flex flex-col gap-4">
+                <div class="flex justify-between items-center px-4">
+                    <!-- Shuffle Button -->
+                    <button id="btn-shuffle" class="text-white/50 hover:text-purple-400 transition text-lg" title="Toggle Shuffle">
+                        <i class="fa-solid fa-shuffle"></i>
+                    </button>
+
+                    <!-- Previous Track -->
+                    <button id="btn-prev" class="text-white/80 hover:text-white transition text-xl hover:scale-110 active:scale-95" title="Previous Song">
+                        <i class="fa-solid fa-backward-step"></i>
+                    </button>
+
+                    <!-- Play / Pause Button -->
+                    <button id="btn-play" class="w-16 h-16 rounded-full bg-gradient-to-tr from-purple-600 to-pink-500 text-white flex items-center justify-center shadow-lg shadow-purple-500/40 hover:scale-105 active:scale-95 transition" title="Play/Pause">
+                        <i id="play-icon" class="fa-solid fa-play text-xl ml-1"></i>
+                    </button>
+
+                    <!-- Next Track -->
+                    <button id="btn-next" class="text-white/80 hover:text-white transition text-xl hover:scale-110 active:scale-95" title="Next Song">
+                        <i class="fa-solid fa-forward-step"></i>
+                    </button>
+
+                    <!-- Repeat Button -->
+                    <button id="btn-repeat" class="text-white/50 hover:text-purple-400 transition text-lg relative" title="Repeat Mode">
+                        <i class="fa-solid fa-repeat"></i>
+                        <span id="repeat-badge" class="hidden absolute -top-1 -right-2 text-[9px] bg-purple-500 text-white font-bold px-1 rounded-full">1</span>
+                    </button>
+                </div>
+
+                <!-- Volume Bar Container -->
+                <div class="flex items-center gap-3 glass-card px-4 py-2.5 rounded-2xl border border-white/5">
+                    <button id="btn-volume-icon" class="text-white/70 hover:text-white transition">
+                        <i id="volume-icon" class="fa-solid fa-volume-high"></i>
+                    </button>
+                    <input id="volume-bar" type="range" min="0" max="1" step="0.01" value="0.8" class="w-full">
+                </div>
+            </div>
+
+        </div>
+
+        <!-- Right Column: Interactive Playlist Drawer / Sidebar -->
+        <div id="playlist-drawer" class="w-full lg:w-80 flex flex-col glass-card rounded-2xl p-4 border border-white/10 hidden lg:flex">
+            
+            <div class="flex justify-between items-center mb-4 pb-3 border-b border-white/10">
+                <div class="flex items-center gap-2">
+                    <i class="fa-solid fa-list-check text-purple-400"></i>
+                    <h3 class="font-bold text-base text-white/90">Playlist Queue</h3>
+                </div>
+                <span id="playlist-count" class="text-xs font-semibold bg-purple-500/20 text-purple-300 px-2.5 py-1 rounded-full border border-purple-500/30">
+                    0 songs
+                </span>
+            </div>
+
+            <!-- Track List Scrollable -->
+            <div id="playlist-container" class="flex-1 overflow-y-auto custom-scroll space-y-2 pr-1 max-h-[380px] lg:max-h-full">
+                <!-- Track items injected dynamically -->
+            </div>
+
+            <!-- Footer Stats -->
+            <div class="mt-4 pt-3 border-t border-white/10 flex justify-between items-center text-xs text-white/50">
+                <span id="playlist-total-time">Total: --:--</span>
+                <span class="text-purple-400/80 font-medium"><i class="fa-solid fa-bolt text-xs"></i> Web Audio Ready</span>
+            </div>
+        </div>
+
+    </div>
+
+    <!-- JavaScript Audio Player Engine -->
+    <script>
+        // Default built-in track list (combines high-quality royalty free streams + fallbacks)
+        const initialTracks = [
+            {
+                id: '1',
+                title: 'Cyber Neon Sunset',
+                artist: 'Aether Synth',
+                album: 'Synthwave Dreams',
+                duration: 180,
+                cover: 'https://images.unsplash.com/photo-1518709268805-4e9042af9f23?w=500&auto=format&fit=crop&q=80',
+                src: 'https://cdn.pixabay.com/download/audio/2022/05/27/audio_1808fbf07a.mp3?filename=lofi-study-112191.mp3',
+                synthFreqs: [261.63, 329.63, 392.00, 523.25] // C Major chord melody
+            },
+            {
+                id: '2',
+                title: 'Midnight Lo-Fi Chill',
+                artist: 'Lunar Beats',
+                album: 'Late Night Coffee',
+                duration: 154,
+                cover: 'https://images.unsplash.com/photo-1511671782779-c97d3d27a1d4?w=500&auto=format&fit=crop&q=80',
+                src: 'https://cdn.pixabay.com/download/audio/2022/03/15/audio_c8c8a73467.mp3?filename=chill-abstract-intention-12099.mp3',
+                synthFreqs: [220.00, 277.18, 329.63, 440.00] // A Minor chord melody
+            },
+            {
+                id: '3',
+                title: 'Acoustic Sunrise',
+                artist: 'Horizon Duo',
+                album: 'Morning Breeze',
+                duration: 140,
+                cover: 'https://images.unsplash.com/photo-1465847899084-d164df4dedc6?w=500&auto=format&fit=crop&q=80',
+                src: 'https://cdn.pixabay.com/download/audio/2022/10/14/audio_9939f792e8.mp3?filename=guitars-and-groove-123498.mp3',
+                synthFreqs: [196.00, 246.94, 293.66, 392.00] // G Major chord melody
+            }
+        ];
+
+        // State variables
+        let tracks = [...initialTracks];
+        let currentTrackIndex = 0;
+        let isPlaying = false;
+        let isShuffle = false;
+        let repeatMode = 0; // 0: Off, 1: Repeat All, 2: Repeat One
+        let isMuted = false;
+        let lastVolume = 0.8;
+        let synthInterval = null;
+
+        // Web Audio API Fallback Synthesizer for 100% offline playback reliability
+        let audioCtx = null;
+        let synthOscillator = null;
+
+        // Audio HTML5 Object
+        const audio = new Audio();
+        audio.crossOrigin = "anonymous";
+
+        // DOM Elements
+        const songTitle = document.getElementById('song-title');
+        const artistName = document.getElementById('artist-name');
+        const coverArt = document.getElementById('cover-art');
+        const vinylDisc = document.getElementById('vinyl-disc');
+        const currentTimeEl = document.getElementById('current-time');
+        const totalDurationEl = document.getElementById('total-duration');
+        const progressBar = document.getElementById('progress-bar');
+        const volumeBar = document.getElementById('volume-bar');
+        const volumeIcon = document.getElementById('volume-icon');
+        const playBtn = document.getElementById('btn-play');
+        const playIcon = document.getElementById('play-icon');
+        const prevBtn = document.getElementById('btn-prev');
+        const nextBtn = document.getElementById('btn-next');
+        const shuffleBtn = document.getElementById('btn-shuffle');
+        const repeatBtn = document.getElementById('btn-repeat');
+        const repeatBadge = document.getElementById('repeat-badge');
+        const playlistContainer = document.getElementById('playlist-container');
+        const playlistCount = document.getElementById('playlist-count');
+        const fileUpload = document.getElementById('file-upload');
+        const vizBars = document.querySelectorAll('.viz-bar');
+        const togglePlaylistMobile = document.getElementById('toggle-playlist-mobile');
+        const playlistDrawer = document.getElementById('playlist-drawer');
+
+        // Initialize Web Audio Context on user interaction
+        function initAudioContext() {
+            if (!audioCtx) {
+                const AudioContext = window.AudioContext || window.webkitAudioContext;
+                audioCtx = new AudioContext();
+            }
+        }
+
+        // Initialize Player App
+        function initPlayer() {
+            renderPlaylist();
+            loadTrack(currentTrackIndex);
+            setupEventListeners();
+            audio.volume = volumeBar.value;
+        }
+
+        // Load track data
+        function loadTrack(index) {
+            currentTrackIndex = index;
+            const track = tracks[currentTrackIndex];
+
+            songTitle.innerText = track.title;
+            artistName.innerText = track.artist;
+            coverArt.src = track.cover;
+            
+            // Set source
+            audio.src = track.src;
+            progressBar.value = 0;
+            currentTimeEl.innerText = "0:00";
+            totalDurationEl.innerText = formatTime(track.duration || 0);
+
+            // Update UI list highlight
+            renderPlaylist();
+
+            if (isPlaying) {
+                playAudio();
+            }
+        }
+
+        // Play functionality with audio fallback handling
+        function playAudio() {
+            initAudioContext();
+            isPlaying = true;
+            playIcon.className = "fa-solid fa-pause text-xl";
+            vinylDisc.classList.add('spinning');
+            startVisualizerAnimation();
+
+            const playPromise = audio.play();
+            if (playPromise !== undefined) {
+                playPromise.catch(error => {
+                    console.warn("Audio playback source restricted or failed. Initializing Fallback Web Audio Synthesizer.", error);
+                    startSynthFallbackTrack();
+                });
+            }
+        }
+
+        // Pause Audio
+        function pauseAudio() {
+            isPlaying = false;
+            playIcon.className = "fa-solid fa-play text-xl ml-1";
+            vinylDisc.classList.remove('spinning');
+            audio.pause();
+            stopSynthFallback();
+            stopVisualizerAnimation();
+        }
+
+        // Web Audio Synthesizer Fallback Engine
+        function startSynthFallbackTrack() {
+            stopSynthFallback();
+            if (!audioCtx) return;
+
+            let currentNote = 0;
+            const currentTrack = tracks[currentTrackIndex];
+            const freqs = currentTrack.synthFreqs || [261.63, 329.63, 392.00, 523.25];
+
+            synthInterval = setInterval(() => {
+                if (!isPlaying) return;
+                try {
+                    const osc = audioCtx.createOscillator();
+                    const gain = audioCtx.createGain();
+                    
+                    osc.type = 'sine';
+                    osc.frequency.setValueAtTime(freqs[currentNote % freqs.length], audioCtx.currentTime);
+                    
+                    gain.gain.setValueAtTime(0.15 * volumeBar.value, audioCtx.currentTime);
+                    gain.gain.exponentialRampToValueAtTime(0.001, audioCtx.currentTime + 0.6);
+
+                    osc.connect(gain);
+                    gain.connect(audioCtx.destination);
+
+                    osc.start();
+                    osc.stop(audioCtx.currentTime + 0.6);
+
+                    currentNote++;
+                } catch (e) {
+                    console.error("Synth error:", e);
+                }
+            }, 500);
+        }
+
+        function stopSynthFallback() {
+            if (synthInterval) {
+                clearInterval(synthInterval);
+                synthInterval = null;
+            }
+        }
+
+        // Visualizer Bar Random Motion Effect
+        let vizInterval = null;
+        function startVisualizerAnimation() {
+            stopVisualizerAnimation();
+            vizInterval = setInterval(() => {
+                vizBars.forEach(bar => {
+                    const randomHeight = isPlaying ? Math.floor(Math.random() * 24) + 6 : 4;
+                    bar.style.height = `${randomHeight}px`;
+                });
+            }, 150);
+        }
+
+        function stopVisualizerAnimation() {
+            if (vizInterval) clearInterval(vizInterval);
+            vizBars.forEach(bar => bar.style.height = '4px');
+        }
+
+        // Time Formatter utility (seconds -> MM:SS)
+        function formatTime(seconds) {
+            if (isNaN(seconds)) return "0:00";
+            const mins = Math.floor(seconds / 60);
+            const secs = Math.floor(seconds % 60);
+            return `${mins}:${secs < 10 ? '0' : ''}${secs}`;
+        }
+
+        // Event Listeners Setup
+        function setupEventListeners() {
+            // Play/Pause toggle
+            playBtn.addEventListener('click', () => {
+                if (isPlaying) {
+                    pauseAudio();
+                } else {
+                    playAudio();
+                }
+            });
+
+            // Previous Button
+            prevBtn.addEventListener('click', () => {
+                if (audio.currentTime > 3) {
+                    audio.currentTime = 0;
+                } else {
+                    let prevIndex = currentTrackIndex - 1;
+                    if (prevIndex < 0) prevIndex = tracks.length - 1;
+                    loadTrack(prevIndex);
+                    if (isPlaying) playAudio();
+                }
+            });
+
+            // Next Button
+            nextBtn.addEventListener('click', handleNextTrack);
+
+            // Audio Progress Update
+            audio.addEventListener('timeupdate', () => {
+                if (!isNaN(audio.duration) && audio.duration > 0) {
+                    const progressPercent = (audio.currentTime / audio.duration) * 100;
+                    progressBar.value = progressPercent;
+                    currentTimeEl.innerText = formatTime(audio.currentTime);
+                    totalDurationEl.innerText = formatTime(audio.duration);
+                }
+            });
+
+            // Seek / Scrubbing in Track
+            progressBar.addEventListener('input', () => {
+                if (!isNaN(audio.duration)) {
+                    const seekTime = (progressBar.value / 100) * audio.duration;
+                    audio.currentTime = seekTime;
+                }
+            });
+
+            // Audio Track Ended
+            audio.addEventListener('ended', () => {
+                if (repeatMode === 2) { // Repeat One
+                    audio.currentTime = 0;
+                    playAudio();
+                } else {
+                    handleNextTrack();
+                }
+            });
+
+            // Volume Slider Control
+            volumeBar.addEventListener('input', (e) => {
+                const val = e.target.value;
+                audio.volume = val;
+                updateVolumeIcon(val);
+                isMuted = val === '0';
+            });
+
+            // Mute / Unmute Toggle
+            document.getElementById('btn-volume-icon').addEventListener('click', () => {
+                if (isMuted) {
+                    audio.volume = lastVolume;
+                    volumeBar.value = lastVolume;
+                    isMuted = false;
+                } else {
+                    lastVolume = audio.volume;
+                    audio.volume = 0;
+                    volumeBar.value = 0;
+                    isMuted = true;
+                }
+                updateVolumeIcon(audio.volume);
+            });
+
+            // Shuffle Button Toggle
+            shuffleBtn.addEventListener('click', () => {
+                isShuffle = !isShuffle;
+                shuffleBtn.classList.toggle('text-purple-400', isShuffle);
+                shuffleBtn.classList.toggle('text-white/50', !isShuffle);
+                showToast(isShuffle ? "Shuffle Mode ON" : "Shuffle Mode OFF");
+            });
+
+            // Repeat Button Toggle (Off -> Repeat Playlist -> Repeat Song)
+            repeatBtn.addEventListener('click', () => {
+                repeatMode = (repeatMode + 1) % 3;
+                if (repeatMode === 0) {
+                    repeatBtn.className = "text-white/50 hover:text-purple-400 transition text-lg relative";
+                    repeatBadge.classList.add('hidden');
+                    showToast("Repeat Mode OFF");
+                } else if (repeatMode === 1) {
+                    repeatBtn.className = "text-purple-400 hover:text-purple-300 transition text-lg relative";
+                    repeatBadge.classList.add('hidden');
+                    showToast("Repeat Playlist");
+                } else if (repeatMode === 2) {
+                    repeatBtn.className = "text-purple-400 hover:text-purple-300 transition text-lg relative";
+                    repeatBadge.classList.remove('hidden');
+                    showToast("Repeat Current Song");
+                }
+            });
+
+            // File Upload Handler (Add Custom Local MP3s)
+            fileUpload.addEventListener('change', (e) => {
+                const files = e.target.files;
+                if (!files.length) return;
+
+                Array.from(files).forEach((file, index) => {
+                    const objectUrl = URL.createObjectURL(file);
+                    const newTrack = {
+                        id: Date.now().toString() + index,
+                        title: file.name.replace(/\.[^/.]+$/, ""), // remove extension
+                        artist: 'Local Track',
+                        album: 'User Upload',
+                        duration: 0,
+                        cover: 'https://images.unsplash.com/photo-1470225620780-dba8ba36b745?w=500&auto=format&fit=crop&q=80',
+                        src: objectUrl,
+                        synthFreqs: [261.63, 329.63, 392.00]
+                    };
+                    tracks.push(newTrack);
+                });
+
+                renderPlaylist();
+                showToast(`Added ${files.length} custom song(s)`);
+                
+                // Play newly uploaded song if currently not playing
+                if (!isPlaying) {
+                    loadTrack(tracks.length - files.length);
+                    playAudio();
+                }
+            });
+
+            // Mobile Playlist Drawer Toggle
+            togglePlaylistMobile.addEventListener('click', () => {
+                playlistDrawer.classList.toggle('hidden');
+            });
+        }
+
+        // Handle Next Track logic (Shuffle support included)
+        function handleNextTrack() {
+            if (isShuffle) {
+                let randomIndex = Math.floor(Math.random() * tracks.length);
+                if (tracks.length > 1 && randomIndex === currentTrackIndex) {
+                    randomIndex = (currentTrackIndex + 1) % tracks.length;
+                }
+                loadTrack(randomIndex);
+            } else {
+                let nextIndex = currentTrackIndex + 1;
+                if (nextIndex >= tracks.length) {
+                    if (repeatMode === 1) { // Repeat Playlist
+                        nextIndex = 0;
+                    } else {
+                        pauseAudio();
+                        return;
+                    }
+                }
+                loadTrack(nextIndex);
+            }
+            if (isPlaying) playAudio();
+        }
+
+        // Update Volume Icon UI dynamically
+        function updateVolumeIcon(val) {
+            if (val == 0) {
+                volumeIcon.className = "fa-solid fa-volume-xmark text-red-400";
+            } else if (val < 0.5) {
+                volumeIcon.className = "fa-solid fa-volume-low text-white/70";
+            } else {
+                volumeIcon.className = "fa-solid fa-volume-high text-white/70";
+            }
+        }
+
+        // Render Playlist Queue
+        function renderPlaylist() {
+            playlistContainer.innerHTML = '';
+            playlistCount.innerText = `${tracks.length} song${tracks.length === 1 ? '' : 's'}`;
+
+            tracks.forEach((track, idx) => {
+                const isActive = idx === currentTrackIndex;
+                const item = document.createElement('div');
+                item.className = `flex items-center gap-3 p-2.5 rounded-xl cursor-pointer transition ${
+                    isActive 
+                        ? 'bg-purple-600/30 border border-purple-500/40 text-white' 
+                        : 'hover:bg-white/5 text-white/70 hover:text-white'
+                }`;
+
+                item.innerHTML = `
+                    <div class="relative w-10 h-10 rounded-lg overflow-hidden flex-shrink-0">
+                        <img src="${track.cover}" class="w-full h-full object-cover">
+                        ${isActive && isPlaying ? `
+                            <div class="absolute inset-0 bg-purple-900/60 flex items-center justify-center">
+                                <i class="fa-solid fa-wave-square text-xs text-purple-300 animate-pulse"></i>
+                            </div>
+                        ` : ''}
+                    </div>
+                    <div class="flex-1 min-w-0">
+                        <p class="text-sm font-semibold truncate ${isActive ? 'text-purple-300' : ''}">${track.title}</p>
+                        <p class="text-xs text-white/40 truncate">${track.artist}</p>
+                    </div>
+                    <div class="text-xs font-mono text-white/40">
+                        ${formatTime(track.duration || 0)}
+                    </div>
+                `;
+
+                item.addEventListener('click', () => {
+                    loadTrack(idx);
+                    playAudio();
+                });
+
+                playlistContainer.appendChild(item);
+            });
+        }
+
+        // Toast Notification System
+        function showToast(message) {
+            const container = document.getElementById('toast-container');
+            const toast = document.createElement('div');
+            toast.className = 'glass-panel text-xs text-white px-4 py-2.5 rounded-xl border border-purple-500/30 shadow-lg flex items-center gap-2 animate-bounce';
+            toast.innerHTML = `<i class="fa-solid fa-circle-info text-purple-400"></i> ${message}`;
+            
+            container.appendChild(toast);
+            setTimeout(() => {
+                toast.remove();
+            }, 2500);
+        }
+
+        // Initialize App on window load
+        window.onload = () => {
+            initPlayer();
+        };
+    </script>
+</body>
+</html>
